@@ -115,13 +115,35 @@ prisma.config.ts       # konfigurasi Prisma CLI
 
 **Menambah modul baru** (misalnya `products`): ikuti pola `users/`, yaitu module, controller, service, repository, dan dto. Tambahkan model di `schema.prisma`, jalankan `pnpm db:migrate --name nama_perubahan`, lalu daftarkan module-nya di `app.module.ts`.
 
-## Test & Docker
+## Test
 
 ```bash
-pnpm test                                    # unit test
-pnpm test:e2e                                # butuh database app_test, isinya akan DIHAPUS
-docker compose --profile app up -d --build   # jalankan app + postgres, migration otomatis
+pnpm test        # unit test
+pnpm test:e2e    # butuh database app_test, isinya akan DIHAPUS
 ```
+
+## Docker
+
+Dockerfile punya dua target:
+
+| Target              | Isi                                   | Ukuran  |
+| ------------------- | ------------------------------------- | ------- |
+| `runtime` (default) | aplikasi, tanpa Prisma CLI            | ±316 MB |
+| `migrate`           | job `prisma migrate deploy`, lalu exit | ±616 MB |
+
+```bash
+docker compose --profile app up -d --build   # postgres → migrate → app
+```
+
+Deploy manual: jalankan migration dulu, baru aplikasi.
+
+```bash
+docker build -t app . && docker build -t app-migrate --target migrate .
+docker run --rm -e DATABASE_URL=... app-migrate
+docker run -d --env-file .env -p 3000:3000 app
+```
+
+Image dibuat kecil dengan dua cara. `.pnpmfile.cjs` mencegah Prisma CLI ikut terpasang di dependency production, dan Dockerfile membuang query compiler Prisma untuk database selain PostgreSQL.
 
 ## Catatan
 

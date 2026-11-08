@@ -20,18 +20,34 @@ services:
       timeout: 5s
       retries: 10
 
+  # Job sekali jalan: terapkan migration, lalu berhenti.
+  migrate:
+    profiles: ['app']
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   app:
     profiles: ['app']
-    build: .
+    build:
+      context: .
+      target: runtime
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app?schema=public
+      PORT: 3000
     ports:
-      - '${PORT:-3000}:${PORT:-3000}'
+      # Port di host bisa diubah lewat APP_PORT; di dalam container selalu 3000.
+      - '${APP_PORT:-3000}:3000'
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

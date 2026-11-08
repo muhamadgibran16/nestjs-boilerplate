@@ -1,19 +1,15 @@
 import { AppEnv, validateEnv } from './env.validation';
 
 const base = {
-  DB_HOST: 'localhost',
-  DB_NAME: 'app',
-  DB_USER: 'postgres',
-  DB_PASSWORD: 'postgres',
+  DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/app',
   JWT_SECRET: 'x'.repeat(32),
 };
 
 describe('validateEnv', () => {
   it('applies defaults and converts types', () => {
-    const env = validateEnv({ ...base, PORT: '4000', DB_SYNCHRONIZE: 'true' });
+    const env = validateEnv({ ...base, PORT: '4000', DB_LOGGING: 'true' });
     expect(env.PORT).toBe(4000);
-    expect(env.DB_PORT).toBe(5432);
-    expect(env.DB_SYNCHRONIZE).toBe(true);
+    expect(env.DB_LOGGING).toBe(true);
     expect(env.NODE_ENV).toBe(AppEnv.DEVELOPMENT);
   });
 
@@ -28,7 +24,13 @@ describe('validateEnv', () => {
   });
 
   it('fails when a required variable is missing', () => {
-    const { DB_HOST: _omit, ...rest } = base;
-    expect(() => validateEnv(rest)).toThrow(/DB_HOST/);
+    const { DATABASE_URL: _omit, ...rest } = base;
+    expect(() => validateEnv(rest)).toThrow(/DATABASE_URL/);
+  });
+
+  it('fails on a non-PostgreSQL DATABASE_URL', () => {
+    expect(() =>
+      validateEnv({ ...base, DATABASE_URL: 'mysql://localhost/app' }),
+    ).toThrow(/DATABASE_URL/);
   });
 });

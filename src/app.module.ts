@@ -3,11 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
-import { DatabaseModule } from './common/database/database.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { AppConfig, buildConfig, ENV_FILE_PATHS } from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { HealthModule } from './health/health.module';
+import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -25,7 +25,7 @@ import { UsersModule } from './users/users.module';
         config.get('throttle', { infer: true }),
       ],
     }),
-    DatabaseModule,
+    PrismaModule,
     HealthModule,
     UsersModule,
     AuthModule,

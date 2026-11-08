@@ -14,12 +14,7 @@ export const buildConfig = (env: EnvironmentVariables) => ({
       : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
   swaggerEnabled: env.SWAGGER_ENABLED ?? env.NODE_ENV !== AppEnv.PRODUCTION,
   database: {
-    host: env.DB_HOST,
-    port: env.DB_PORT,
-    name: env.DB_NAME,
-    user: env.DB_USER,
-    password: env.DB_PASSWORD,
-    synchronize: env.DB_SYNCHRONIZE,
+    url: env.DATABASE_URL,
     logging: env.DB_LOGGING,
   },
   jwt: {

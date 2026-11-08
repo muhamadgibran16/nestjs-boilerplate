@@ -24,7 +24,7 @@
 
 # NestJS Boilerplate
 
-REST API starter: **NestJS 11 · PostgreSQL + TypeORM · JWT · Role-based access · Swagger · Docker**
+REST API starter: **NestJS 11 · PostgreSQL + Prisma 7 · JWT · Role-based access · Swagger · Docker**
 
 ## Mulai
 
@@ -34,7 +34,7 @@ Butuh Node.js ≥ 20, Docker, dan pnpm (aktifkan sekali dengan `corepack enable`
 pnpm install
 cp .env.example .env            # isi JWT_SECRET (min. 32 karakter)
 docker compose up -d postgres
-pnpm migration:run
+pnpm db:deploy                  # terapkan migration
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=ganti-password pnpm seed:admin
 pnpm start:dev
 ```
@@ -72,29 +72,32 @@ Isi `message` bisa diatur dengan `@ResponseMessage('...')`.
 
 ## Database
 
-Skema hanya diubah lewat migration (`synchronize` dimatikan).
+Skema database didefinisikan di `prisma/schema.prisma`. Setiap perubahan dibuat lewat migration:
 
 ```bash
-pnpm migration:generate src/common/database/migrations/NamaPerubahan   # setelah mengubah *.entity.ts
-pnpm migration:run
-pnpm migration:revert
+pnpm db:migrate --name tambah_tabel_x   # buat migration dari perubahan schema + terapkan (dev)
+pnpm db:deploy                          # terapkan migration yang belum jalan (production/CI)
+pnpm db:status                          # cek status migration
+pnpm db:studio                          # GUI untuk melihat isi database
 ```
 
-Entity baru: beri nama file `*.entity.ts`, lalu extend `AbstractEntity` (sudah termasuk UUID, timestamp, dan soft delete).
+Prisma Client di-generate otomatis ke `src/generated/prisma` saat `pnpm install` dan `pnpm db:migrate`. Folder ini tidak di-commit. Kalau muncul error tipe setelah mengubah schema, jalankan `pnpm db:generate`.
+
+Soft delete dilakukan manual: repository selalu memfilter `deletedAt: null`. Untuk model baru, salin kolom standar dari model `User` (`id`, `createdAt`, `updatedAt`, `deletedAt`).
 
 ## Struktur
 
 ```
 src/
 ├── auth/              # register/login, JwtAuthGuard & RolesGuard (global)
-├── users/             # entity, repository, service, controller (admin)
+├── users/             # repository, service, controller, dto (admin)
+├── prisma/            # PrismaModule & PrismaService (global)
+├── generated/         # Prisma Client hasil generate (tidak di-commit)
 ├── health/            # endpoint health check (terminus)
 ├── config/            # validasi & struktur environment variable
 ├── common/
-│   ├── database/      # DatabaseModule, data-source CLI, migrations/
 │   ├── decorators/    # @Public, @Roles, @CurrentUser, @ResponseMessage
 │   ├── dto/           # PaginationQueryDto
-│   ├── entities/      # AbstractEntity (uuid, timestamps, soft delete)
 │   ├── filters/       # AllExceptionsFilter
 │   ├── interceptors/  # TransformInterceptor
 │   ├── middleware/    # RequestLoggerMiddleware
@@ -103,9 +106,14 @@ src/
 ├── cli/               # create-admin (seed)
 ├── bootstrap.ts       # setup global (dipakai main.ts & test e2e)
 └── main.ts
+
+prisma/
+├── schema.prisma      # definisi model & enum
+└── migrations/        # file migration SQL
+prisma.config.ts       # konfigurasi Prisma CLI
 ```
 
-**Menambah modul baru** (misalnya `products`): ikuti pola `users/`, yaitu module, controller, service, repository, entity, dan dto. Daftarkan module-nya di `app.module.ts`, lalu jalankan `pnpm migration:generate`.
+**Menambah modul baru** (misalnya `products`): ikuti pola `users/`, yaitu module, controller, service, repository, dan dto. Tambahkan model di `schema.prisma`, jalankan `pnpm db:migrate --name nama_perubahan`, lalu daftarkan module-nya di `app.module.ts`.
 
 ## Test & Docker
 

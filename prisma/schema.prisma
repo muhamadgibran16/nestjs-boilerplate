@@ -1,0 +1,42 @@
+// Dokumentasi: https://pris.ly/d/prisma-schema
+// Setelah mengubah file ini, jalankan: pnpm db:migrate --name <nama_perubahan>
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+  // partialIndexes: unique email hanya untuk user yang belum di-soft-delete.
+  previewFeatures     = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  USER
+
+  @@map("user_role")
+}
+
+model User {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String    @db.VarChar(100)
+  email      String    @db.VarChar(255)
+  phone      String?   @db.VarChar(20)
+  /// Hash bcrypt. Jangan pernah dikirim ke client (lihat UsersRepository).
+  password   String
+  role       Role      @default(USER)
+  isActive   Boolean   @default(true) @map("is_active")
+  isVerified Boolean   @default(false) @map("is_verified")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  /// Soft delete: terisi berarti user sudah dihapus.
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@unique([email], map: "users_email_active_key", where: { deletedAt: null })
+  @@index([isVerified])
+  @@map("users")
+}

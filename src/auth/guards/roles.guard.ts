@@ -7,7 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { ROLES_KEY } from '../../common/decorators/roles.decorator';
-import { Role } from '../../users/enums/role.enum';
+import { Role } from '../../generated/prisma/client';
 
 /** Guard global: cek role dari JWT terhadap decorator `@Roles(...)`. */
 @Injectable()

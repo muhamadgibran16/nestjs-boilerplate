@@ -1,36 +1,79 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, ILike, Repository } from 'typeorm';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
-import { User } from './entities/user.entity';
+import { Prisma, User } from '../generated/prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { PublicUser } from './dto/user.dto';
+
+/** Password tidak pernah ikut di-SELECT, kecuali lewat findByEmailWithPassword. */
+const omitPassword = { password: true } as const;
+
+/** Hanya user yang belum di-soft-delete. */
+const notDeleted = { deletedAt: null } satisfies Prisma.UserWhereInput;
 
 @Injectable()
-export class UsersRepository extends Repository<User> {
-  constructor(dataSource: DataSource) {
-    super(User, dataSource.createEntityManager());
+export class UsersRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  findById(id: string): Promise<PublicUser | null> {
+    return this.prisma.user.findFirst({
+      where: { id, ...notDeleted },
+      omit: omitPassword,
+    });
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.findOneBy({ email: email.toLowerCase() });
+  findByEmail(email: string): Promise<PublicUser | null> {
+    return this.prisma.user.findFirst({
+      where: { email: email.toLowerCase(), ...notDeleted },
+      omit: omitPassword,
+    });
   }
 
-  /** Sama seperti findByEmail, tapi ikut mengambil hash password (untuk login). */
+  /** Ikut mengambil hash password. Hanya untuk proses login. */
   findByEmailWithPassword(email: string): Promise<User | null> {
-    return this.createQueryBuilder('user')
-      .addSelect('user.password')
-      .where('user.email = :email', { email: email.toLowerCase() })
-      .getOne();
+    return this.prisma.user.findFirst({
+      where: { email: email.toLowerCase(), ...notDeleted },
+    });
   }
 
-  findPaginated(query: PaginationQueryDto): Promise<[User[], number]> {
+  findPaginated(query: PaginationQueryDto): Promise<[PublicUser[], number]> {
     const search = query.search?.trim();
-    const where = search
-      ? [{ name: ILike(`%${search}%`) }, { email: ILike(`%${search}%`) }]
-      : undefined;
-    return this.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip: query.skip,
-      take: query.limit,
+    const where: Prisma.UserWhereInput = {
+      ...notDeleted,
+      ...(search && {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+    return this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        omit: omitPassword,
+        orderBy: { createdAt: 'desc' },
+        skip: query.skip,
+        take: query.limit,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+  }
+
+  create(data: Prisma.UserCreateInput): Promise<PublicUser> {
+    return this.prisma.user.create({ data, omit: omitPassword });
+  }
+
+  update(id: string, data: Prisma.UserUpdateInput): Promise<PublicUser> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+      omit: omitPassword,
+    });
+  }
+
+  async softDelete(id: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
     });
   }
 }

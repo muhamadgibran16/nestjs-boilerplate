@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { QueryFailedError } from 'typeorm';
+import { Prisma } from '../../generated/prisma/client';
 
 export interface ErrorResponse {
   success: false;
@@ -18,8 +18,11 @@ export interface ErrorResponse {
   timestamp: string;
 }
 
-/** Postgres error code untuk unique violation. */
-const PG_UNIQUE_VIOLATION = '23505';
+/** Kode error Prisma yang dipetakan ke status HTTP. https://pris.ly/d/error-codes */
+const PRISMA_ERROR_STATUS: Record<string, [number, string]> = {
+  P2002: [HttpStatus.CONFLICT, 'Resource already exists'],
+  P2025: [HttpStatus.NOT_FOUND, 'Resource not found'],
+};
 
 /** Menyeragamkan semua error response dan mencatat error tak terduga. */
 @Catch()
@@ -70,14 +73,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return { statusCode, message: message ?? exception.message };
     }
 
-    if (
-      exception instanceof QueryFailedError &&
-      (exception.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION
-    ) {
-      return {
-        statusCode: HttpStatus.CONFLICT,
-        message: 'Resource already exists',
-      };
+    if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      const mapped = PRISMA_ERROR_STATUS[exception.code];
+      if (mapped) return { statusCode: mapped[0], message: mapped[1] };
     }
 
     return {

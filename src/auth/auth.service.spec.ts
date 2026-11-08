@@ -3,8 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
-import { User } from '../users/entities/user.entity';
-import { Role } from '../users/enums/role.enum';
+import { Role, User } from '../users/users.schema';
 import { UsersService } from '../users/users.service';
 import { AuthService } from './auth.service';
 
@@ -18,15 +17,20 @@ describe('AuthService', () => {
   const jwtService = { signAsync: jest.fn().mockResolvedValue('signed.jwt') };
   const config = { get: jest.fn().mockReturnValue('1h') };
 
-  const user = (overrides: Partial<User> = {}) =>
-    Object.assign(new User(), {
-      id: 'user-id',
-      email: 'budi@example.com',
-      role: Role.USER,
-      isActive: true,
-      password: bcrypt.hashSync('correct-password', 4),
-      ...overrides,
-    });
+  const user = (overrides: Partial<User> = {}): User => ({
+    id: 'user-id',
+    name: 'Budi',
+    email: 'budi@example.com',
+    phone: null,
+    role: Role.USER,
+    isActive: true,
+    isVerified: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deletedAt: null,
+    password: bcrypt.hashSync('correct-password', 4),
+    ...overrides,
+  });
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -72,6 +76,15 @@ describe('AuthService', () => {
           password: 'correct-password',
         }),
       ).resolves.toMatchObject({ accessToken: 'signed.jwt' });
+    });
+
+    it('never returns the password hash', async () => {
+      usersService.findByEmailWithPassword.mockResolvedValue(user());
+      const result = await service.login({
+        email: 'budi@example.com',
+        password: 'correct-password',
+      });
+      expect(result.user).not.toHaveProperty('password');
     });
 
     it('rejects a wrong password', async () => {

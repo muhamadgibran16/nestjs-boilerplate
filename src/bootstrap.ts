@@ -1,8 +1,4 @@
-import {
-  ClassSerializerInterceptor,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import helmet from 'helmet';
@@ -30,11 +26,7 @@ export function configureApp(app: INestApplication): void {
       transform: true,
     }),
   );
-  // Serializer di luar TransformInterceptor agar @Exclude() pada entity tetap berlaku.
-  app.useGlobalInterceptors(
-    new ClassSerializerInterceptor(reflector),
-    new TransformInterceptor(reflector),
-  );
+  app.useGlobalInterceptors(new TransformInterceptor(reflector));
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableShutdownHooks();
 }

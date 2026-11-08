@@ -3,7 +3,6 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
@@ -42,30 +41,19 @@ export class EnvironmentVariables {
   @IsString()
   CORS_ORIGIN: string = '*';
 
-  @IsString()
-  @IsNotEmpty()
-  DB_HOST!: string;
+  /** Contoh: postgresql://user:password@localhost:5432/app */
+  @Matches(/^postgres(ql)?:\/\/.+/, {
+    message: 'DATABASE_URL harus berupa URL PostgreSQL (postgresql://...)',
+  })
+  DATABASE_URL!: string;
 
+  /** Jumlah maksimal koneksi di connection pool. */
   @Transform(({ value }) => Number(value))
   @IsInt()
-  DB_PORT: number = 5432;
+  @Min(1)
+  DB_POOL_MAX: number = 10;
 
-  @IsString()
-  @IsNotEmpty()
-  DB_NAME!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  DB_USER!: string;
-
-  @IsString()
-  DB_PASSWORD!: string;
-
-  /** Hanya untuk eksperimen lokal. Gunakan migration untuk perubahan skema. */
-  @Transform(toBoolean)
-  @IsBoolean()
-  DB_SYNCHRONIZE: boolean = false;
-
+  /** Tampilkan query SQL di log (level debug). */
   @Transform(toBoolean)
   @IsBoolean()
   DB_LOGGING: boolean = false;

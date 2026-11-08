@@ -7,7 +7,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
-import { QueryFailedError } from 'typeorm';
 
 export interface ErrorResponse {
   success: false;
@@ -20,6 +19,19 @@ export interface ErrorResponse {
 
 /** Postgres error code untuk unique violation. */
 const PG_UNIQUE_VIOLATION = '23505';
+
+/**
+ * Cari kode error Postgres. Drizzle membungkus error driver di DrizzleQueryError,
+ * jadi kodenya ada di `cause`.
+ */
+function findPgErrorCode(error: unknown): string | undefined {
+  for (let e = error, depth = 0; e && depth < 5; depth++) {
+    const { code, cause } = e as { code?: unknown; cause?: unknown };
+    if (typeof code === 'string') return code;
+    e = cause;
+  }
+  return undefined;
+}
 
 /** Menyeragamkan semua error response dan mencatat error tak terduga. */
 @Catch()
@@ -70,10 +82,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return { statusCode, message: message ?? exception.message };
     }
 
-    if (
-      exception instanceof QueryFailedError &&
-      (exception.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION
-    ) {
+    if (findPgErrorCode(exception) === PG_UNIQUE_VIOLATION) {
       return {
         statusCode: HttpStatus.CONFLICT,
         message: 'Resource already exists',

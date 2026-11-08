@@ -2,11 +2,11 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/bootstrap';
-import { Role } from '../src/users/enums/role.enum';
-import { UsersRepository } from '../src/users/users.repository';
+import { Role, users } from '../src/users/users.schema';
+import { getDrizzleToken } from '@nestjs/drizzle';
+import { Database } from '../src/database/database.types';
 
 describe('App (e2e)', () => {
   let app: INestApplication<App>;
@@ -28,10 +28,6 @@ describe('App (e2e)', () => {
     app = moduleRef.createNestApplication();
     configureApp(app);
     await app.init();
-
-    const dataSource = app.get(DataSource);
-    await dataSource.dropDatabase();
-    await dataSource.runMigrations();
 
     http = request(app.getHttpServer());
   });
@@ -115,14 +111,17 @@ describe('App (e2e)', () => {
 
   describe('users (admin only)', () => {
     beforeAll(async () => {
-      await app.get(UsersRepository).insert({
-        name: 'Admin',
-        email: 'admin@example.com',
-        password: await import('bcryptjs').then((b) =>
-          b.hash('AdminPassw0rd', 4),
-        ),
-        role: Role.ADMIN,
-      });
+      await app
+        .get<Database>(getDrizzleToken())
+        .insert(users)
+        .values({
+          name: 'Admin',
+          email: 'admin@example.com',
+          password: await import('bcryptjs').then((b) =>
+            b.hash('AdminPassw0rd', 4),
+          ),
+          role: Role.ADMIN,
+        });
       const res = await http
         .post('/api/v1/auth/login')
         .send({ email: 'admin@example.com', password: 'AdminPassw0rd' });

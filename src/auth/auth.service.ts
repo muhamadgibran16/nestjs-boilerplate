@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { AppConfig } from '../config/configuration';
-import { User } from '../users/entities/user.entity';
-import { Role } from '../users/enums/role.enum';
+import { Role } from '../users/users.schema';
+import { PublicUser } from '../users/dto/user.dto';
 import { UsersService } from '../users/users.service';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
@@ -44,14 +44,16 @@ export class AuthService {
     if (!user.isActive) {
       throw new UnauthorizedException('Account is inactive');
     }
-    return this.buildAuthResponse(user);
+    // Buang hash password sebelum dikirim ke client.
+    const { password: _password, ...publicUser } = user;
+    return this.buildAuthResponse(publicUser);
   }
 
-  me(userId: string): Promise<User> {
+  me(userId: string): Promise<PublicUser> {
     return this.usersService.findOne(userId);
   }
 
-  private async buildAuthResponse(user: User): Promise<AuthResponseDto> {
+  private async buildAuthResponse(user: PublicUser): Promise<AuthResponseDto> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,

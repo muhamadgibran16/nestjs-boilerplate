@@ -24,17 +24,17 @@
 
 # NestJS Boilerplate
 
-REST API starter: **NestJS 11 · PostgreSQL + TypeORM · JWT · Role-based access · Swagger · Docker**
+REST API starter: **NestJS 11 · PostgreSQL + Drizzle ORM · JWT · Role-based access · Swagger · Docker**
 
 ## Mulai
 
-Butuh Node.js ≥ 20, Docker, dan pnpm (aktifkan sekali dengan `corepack enable`).
+Butuh Node.js ≥ 20.19, Docker, dan pnpm (aktifkan sekali dengan `corepack enable`).
 
 ```bash
 pnpm install
 cp .env.example .env            # isi JWT_SECRET (min. 32 karakter)
 docker compose up -d postgres
-pnpm migration:run
+pnpm db:migrate                 # terapkan migration
 ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=ganti-password pnpm seed:admin
 pnpm start:dev
 ```
@@ -72,29 +72,35 @@ Isi `message` bisa diatur dengan `@ResponseMessage('...')`.
 
 ## Database
 
-Skema hanya diubah lewat migration (`synchronize` dimatikan).
+Tabel didefinisikan per modul di file `*.schema.ts`, misalnya `src/users/users.schema.ts`. Konfigurasi drizzle-kit ada di `drizzle.config.ts`, dan file migration SQL tersimpan di folder `drizzle/`.
 
 ```bash
-pnpm migration:generate src/common/database/migrations/NamaPerubahan   # setelah mengubah *.entity.ts
-pnpm migration:run
-pnpm migration:revert
+pnpm db:generate --name tambah_tabel_x   # buat migration SQL dari perubahan *.schema.ts
+pnpm db:migrate                          # terapkan migration yang belum jalan
+pnpm db:check                            # cek konsistensi file migration
+pnpm db:studio                           # GUI untuk melihat isi database
 ```
 
-Entity baru: beri nama file `*.entity.ts`, lalu extend `AbstractEntity` (sudah termasuk UUID, timestamp, dan soft delete).
+Tabel baru cukup memakai `...baseColumns` dari `src/database/columns.ts` (sudah termasuk UUID, timestamp, dan soft delete), lalu daftarkan di `src/database/schema.ts`. Soft delete dilakukan manual: repository selalu memfilter `isNull(deletedAt)`.
+
+Koneksi database memakai modul resmi [`@nestjs/drizzle`](https://docs.nestjs.com/data/drizzle). Akses database di repository:
+
+```ts
+constructor(@InjectDrizzle() private readonly db: Database) {}
+```
 
 ## Struktur
 
 ```
 src/
 ├── auth/              # register/login, JwtAuthGuard & RolesGuard (global)
-├── users/             # entity, repository, service, controller (admin)
+├── users/             # schema, repository, service, controller (admin)
+├── database/          # DatabaseModule (@nestjs/drizzle), tipe Database, baseColumns, migrator, health check
 ├── health/            # endpoint health check (terminus)
 ├── config/            # validasi & struktur environment variable
 ├── common/
-│   ├── database/      # DatabaseModule, data-source CLI, migrations/
 │   ├── decorators/    # @Public, @Roles, @CurrentUser, @ResponseMessage
 │   ├── dto/           # PaginationQueryDto
-│   ├── entities/      # AbstractEntity (uuid, timestamps, soft delete)
 │   ├── filters/       # AllExceptionsFilter
 │   ├── interceptors/  # TransformInterceptor
 │   ├── middleware/    # RequestLoggerMiddleware
@@ -103,16 +109,34 @@ src/
 ├── cli/               # create-admin (seed)
 ├── bootstrap.ts       # setup global (dipakai main.ts & test e2e)
 └── main.ts
+
+drizzle/               # file migration SQL (hasil db:generate)
+drizzle.config.ts      # konfigurasi drizzle-kit
 ```
 
-**Menambah modul baru** (misalnya `products`): ikuti pola `users/`, yaitu module, controller, service, repository, entity, dan dto. Daftarkan module-nya di `app.module.ts`, lalu jalankan `pnpm migration:generate`.
+**Menambah modul baru** (misalnya `products`): ikuti pola `users/`, yaitu module, controller, service, repository, `products.schema.ts`, dan dto. Daftarkan schema-nya di `src/database/schema.ts` dan module-nya di `app.module.ts`, lalu jalankan `pnpm db:generate --name add_products`.
 
-## Test & Docker
+## Test
 
 ```bash
-pnpm test                                    # unit test
-pnpm test:e2e                                # butuh database app_test, isinya akan DIHAPUS
-docker compose --profile app up -d --build   # jalankan app + postgres, migration otomatis
+pnpm test        # unit test
+pnpm test:e2e    # butuh database app_test, isinya akan DIHAPUS
+```
+
+## Docker
+
+Satu image (±318 MB) dipakai untuk aplikasi sekaligus migration:
+
+```bash
+docker compose --profile app up -d --build   # postgres → migrate → app
+```
+
+Deploy manual: jalankan migration dulu, baru aplikasi.
+
+```bash
+docker build -t app .
+docker run --rm -e DATABASE_URL=... app node dist/database/migrate.js
+docker run -d --env-file .env -p 3000:3000 app
 ```
 
 ## Catatan

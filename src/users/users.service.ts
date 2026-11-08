@@ -8,8 +8,9 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { Paginated } from '../common/pagination/paginated';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './entities/user.entity';
+import { PublicUser } from './dto/user.dto';
 import { UsersRepository } from './users.repository';
+import { User } from './users.schema';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -17,22 +18,21 @@ const BCRYPT_ROUNDS = 12;
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: CreateUserDto): Promise<PublicUser> {
     await this.ensureEmailAvailable(dto.email);
-    const user = this.usersRepository.create({
+    return this.usersRepository.create({
       ...dto,
       password: await bcrypt.hash(dto.password, BCRYPT_ROUNDS),
     });
-    return this.usersRepository.save(user);
   }
 
-  async findAll(query: PaginationQueryDto): Promise<Paginated<User>> {
+  async findAll(query: PaginationQueryDto): Promise<Paginated<PublicUser>> {
     const [items, total] = await this.usersRepository.findPaginated(query);
     return new Paginated(items, total, query.page, query.limit);
   }
 
-  async findOne(id: string): Promise<User> {
-    const user = await this.usersRepository.findOneBy({ id });
+  async findOne(id: string): Promise<PublicUser> {
+    const user = await this.usersRepository.findById(id);
     if (!user) throw new NotFoundException(`User ${id} not found`);
     return user;
   }
@@ -41,13 +41,12 @@ export class UsersService {
     return this.usersRepository.findByEmailWithPassword(email);
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<User> {
+  async update(id: string, dto: UpdateUserDto): Promise<PublicUser> {
     const user = await this.findOne(id);
     if (dto.email && dto.email !== user.email) {
       await this.ensureEmailAvailable(dto.email);
     }
-    this.usersRepository.merge(user, dto);
-    return this.usersRepository.save(user);
+    return this.usersRepository.update(id, dto);
   }
 
   async remove(id: string): Promise<void> {

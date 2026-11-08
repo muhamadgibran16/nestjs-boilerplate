@@ -3,33 +3,34 @@ import { Test } from '@nestjs/testing';
 import * as bcrypt from 'bcryptjs';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { Paginated } from '../common/pagination/paginated';
-import { User } from './entities/user.entity';
-import { Role } from './enums/role.enum';
+import { PublicUser } from './dto/user.dto';
 import { UsersRepository } from './users.repository';
+import { NewUser, Role } from './users.schema';
 import { UsersService } from './users.service';
 
-const makeUser = (overrides: Partial<User> = {}): User =>
-  Object.assign(new User(), {
-    id: '11111111-1111-4111-8111-111111111111',
-    name: 'Budi',
-    email: 'budi@example.com',
-    role: Role.USER,
-    isActive: true,
-    ...overrides,
-  });
+const makeUser = (overrides: Partial<PublicUser> = {}): PublicUser => ({
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'Budi',
+  email: 'budi@example.com',
+  phone: null,
+  role: Role.USER,
+  isActive: true,
+  isVerified: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  deletedAt: null,
+  ...overrides,
+});
 
 describe('UsersService', () => {
   let service: UsersService;
   const repo = {
+    findById: jest.fn(),
     findByEmail: jest.fn(),
     findByEmailWithPassword: jest.fn(),
-    findOneBy: jest.fn(),
     findPaginated: jest.fn(),
-    create: jest.fn((data: Partial<User>) => Object.assign(new User(), data)),
-    merge: jest.fn((target: User, data: Partial<User>) =>
-      Object.assign(target, data),
-    ),
-    save: jest.fn((user: User) => Promise.resolve(user)),
+    create: jest.fn(),
+    update: jest.fn(),
     softDelete: jest.fn(),
   };
 
@@ -44,14 +45,16 @@ describe('UsersService', () => {
   describe('create', () => {
     it('hashes the password before saving', async () => {
       repo.findByEmail.mockResolvedValue(null);
-      const user = await service.create({
+      repo.create.mockResolvedValue(makeUser());
+      await service.create({
         name: 'Budi',
         email: 'budi@example.com',
         password: 'plain-password',
       });
-      expect(user.password).not.toBe('plain-password');
+      const data = repo.create.mock.calls[0][0] as NewUser;
+      expect(data.password).not.toBe('plain-password');
       await expect(
-        bcrypt.compare('plain-password', user.password),
+        bcrypt.compare('plain-password', data.password),
       ).resolves.toBe(true);
     });
 
@@ -64,7 +67,7 @@ describe('UsersService', () => {
           password: 'plain-password',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.create).not.toHaveBeenCalled();
     });
   });
 
@@ -86,7 +89,7 @@ describe('UsersService', () => {
   });
 
   it('findOne throws NotFound when missing', async () => {
-    repo.findOneBy.mockResolvedValue(null);
+    repo.findById.mockResolvedValue(null);
     await expect(service.findOne('missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -94,15 +97,17 @@ describe('UsersService', () => {
 
   describe('update', () => {
     it('rejects changing email to one already taken', async () => {
-      repo.findOneBy.mockResolvedValue(makeUser());
+      repo.findById.mockResolvedValue(makeUser());
       repo.findByEmail.mockResolvedValue(makeUser({ id: 'other' }));
       await expect(
         service.update('id', { email: 'taken@example.com' }),
       ).rejects.toBeInstanceOf(ConflictException);
+      expect(repo.update).not.toHaveBeenCalled();
     });
 
     it('does not check availability when email is unchanged', async () => {
-      repo.findOneBy.mockResolvedValue(makeUser());
+      repo.findById.mockResolvedValue(makeUser());
+      repo.update.mockResolvedValue(makeUser({ name: 'Budi Baru' }));
       const user = await service.update('id', {
         email: 'budi@example.com',
         name: 'Budi Baru',
@@ -113,7 +118,7 @@ describe('UsersService', () => {
   });
 
   it('remove soft-deletes the user', async () => {
-    repo.findOneBy.mockResolvedValue(makeUser());
+    repo.findById.mockResolvedValue(makeUser());
     await service.remove('id');
     expect(repo.softDelete).toHaveBeenCalledWith('id');
   });

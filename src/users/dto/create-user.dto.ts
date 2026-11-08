@@ -13,7 +13,7 @@ import {
   normalizeEmail,
   trim,
 } from '../../common/transformers/string.transformers';
-import { Role } from '../enums/role.enum';
+import { Role } from '../users.schema';
 
 export class CreateUserDto {
   /** @example "Budi Santoso" */

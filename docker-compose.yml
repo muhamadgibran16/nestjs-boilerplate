@@ -1,38 +1,52 @@
 # Development lokal:
 #   docker compose up -d postgres          -> hanya database, app jalan via `pnpm start:dev`
-#   docker compose --profile app up -d     -> database + app (build dari Dockerfile)
+#   docker compose --profile app up -d     -> database + migration + app (build dari Dockerfile)
+
+x-app: &app
+  profiles: ['app']
+  build: .
+  image: nestjs-boilerplate:local
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/app
+    PORT: 3000
+
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     ports:
-      - '${DB_PORT:-5432}:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     environment:
-      POSTGRES_DB: ${DB_NAME:-app}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       TZ: Asia/Jakarta
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d app']
       interval: 5s
       timeout: 5s
       retries: 10
 
-  app:
-    profiles: ['app']
-    build: .
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-    ports:
-      - '${PORT:-3000}:${PORT:-3000}'
+  # Job sekali jalan: terapkan migration, lalu berhenti.
+  migrate:
+    <<: *app
+    command: ['node', 'dist/database/migrate.js']
     depends_on:
       postgres:
         condition: service_healthy
+
+  app:
+    <<: *app
+    restart: unless-stopped
+    ports:
+      # Port di host bisa diubah lewat APP_PORT; di dalam container selalu 3000.
+      - '${APP_PORT:-3000}:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

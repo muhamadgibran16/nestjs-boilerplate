@@ -1,13 +1,13 @@
 {
   "name": "nestjs-auth-boilerplate",
   "version": "0.1.0",
-  "description": "NestJS boilerplate: PostgreSQL + TypeORM, JWT auth, role-based access, Swagger, health check, Docker.",
+  "description": "NestJS boilerplate: PostgreSQL + Drizzle ORM, JWT auth, role-based access, Swagger, health check, Docker.",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.34.9",
   "engines": {
-    "node": ">=20",
+    "node": ">=20.19",
     "pnpm": ">=10"
   },
   "scripts": {
@@ -23,13 +23,11 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
-    "typeorm": "typeorm-ts-node-commonjs",
-    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/common/database/data-source.ts",
-    "migration:create": "typeorm-ts-node-commonjs migration:create",
-    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/common/database/data-source.ts",
-    "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/common/database/data-source.ts",
-    "migration:show": "typeorm-ts-node-commonjs migration:show -d src/common/database/data-source.ts",
-    "migration:run:prod": "typeorm migration:run -d dist/common/database/data-source.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "ts-node src/database/migrate.ts",
+    "db:migrate:prod": "node dist/database/migrate.js",
+    "db:check": "drizzle-kit check",
+    "db:studio": "drizzle-kit studio",
     "seed:admin": "ts-node src/cli/create-admin.ts",
     "seed:admin:prod": "node dist/cli/create-admin.js",
     "prepare": "husky || true"
@@ -44,22 +42,22 @@
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.0",
+    "@nestjs/drizzle": "0.0.2",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/platform-express": "^11.1.0",
     "@nestjs/swagger": "^11.4.8",
     "@nestjs/terminus": "^11.1.1",
     "@nestjs/throttler": "^6.7.1",
-    "@nestjs/typeorm": "^11.0.3",
     "bcryptjs": "^3.0.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "dotenv": "^16.4.7",
+    "drizzle-orm": "0.45.4",
     "helmet": "^8.1.0",
     "pg": "^8.16.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2",
-    "typeorm": "^0.3.27"
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.0",
@@ -69,7 +67,9 @@
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.15.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^6.0.3",
+    "drizzle-kit": "0.31.11",
     "eslint": "^9.30.0",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-prettier": "^5.5.1",
@@ -96,15 +96,26 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.ts$": "ts-jest",
+      "^.+\\.js$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "allowJs": true
+          }
+        }
+      ]
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s",
-      "!**/migrations/**",
       "!main.ts",
-      "!cli/**"
+      "!cli/**",
+      "!database/migrate.ts"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(\\.pnpm/[^/]+/node_modules/)?@nestjs/drizzle/)"
+    ]
   }
 }

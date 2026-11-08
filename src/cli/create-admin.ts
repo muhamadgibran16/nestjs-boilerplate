@@ -5,7 +5,7 @@
  */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import { Role } from '../users/enums/role.enum';
+import { Role } from '../users/users.schema';
 import { UsersRepository } from '../users/users.repository';
 import { UsersService } from '../users/users.service';
 

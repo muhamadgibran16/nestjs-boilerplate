@@ -17,7 +17,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { Role } from './enums/role.enum';
+import { Role } from './users.schema';
 import { UsersService } from './users.service';
 
 /** Manajemen user — khusus admin. */

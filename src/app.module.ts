@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
-import { DatabaseModule } from './common/database/database.module';
+import { DatabaseModule } from './database/database.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { AppConfig, buildConfig, ENV_FILE_PATHS } from './config/configuration';
 import { validateEnv } from './config/env.validation';

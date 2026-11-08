@@ -1,23 +1,38 @@
-version: '3'
-
+# Development lokal:
+#   docker compose up -d postgres          -> hanya database, app jalan via `pnpm start:dev`
+#   docker compose --profile app up -d     -> database + app (build dari Dockerfile)
 services:
   postgres:
-    container_name: postgres
-    networks:
-      - postgres
-    image: postgres:12.13
+    image: postgres:17-alpine
     restart: unless-stopped
     ports:
-      - 5432:5432
-    volumes:
-      - ./dbdata:/var/lib/postgresql/data
+      - '${DB_PORT:-5432}:5432'
     environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: ${DB_NAME:-app}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       TZ: Asia/Jakarta
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-networks:
-  postgres:
+  app:
+    profiles: ['app']
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+    ports:
+      - '${PORT:-3000}:${PORT:-3000}'
+    depends_on:
+      postgres:
+        condition: service_healthy
 
+volumes:
+  pgdata:

@@ -1,23 +1,37 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
-import { LoggerInterceptor } from './common/interceptors/logger.interceptor';
+import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
+import { API_PREFIX, configureApp } from './bootstrap';
+import { AppConfig } from './config/configuration';
 
 async function bootstrap() {
-  const logger = new Logger('NestApplication');
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
+  configureApp(app);
 
-  app.useGlobalInterceptors(new LoggerInterceptor());
-  app.enableCors();
-  app.setGlobalPrefix('api/v1');
-  await app
-    .listen(parseInt(process.env.PORT))
-    .then(() => {
-      logger.log(`Server running at http://localhost:${process.env.PORT}`);
-    })
-    .catch((error) => {
-      logger.error(`Error starting server.`);
-      logger.error(error);
-    });
+  const config = app.get(ConfigService<AppConfig, true>);
+  const port = config.get('port', { infer: true });
+
+  if (config.get('swaggerEnabled', { infer: true })) {
+    const document = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder()
+        .setTitle('NestJS Boilerplate API')
+        .setVersion('1.0')
+        .addBearerAuth()
+        .build(),
+    );
+    SwaggerModule.setup('docs', app, document);
+    logger.log(`Swagger docs at http://localhost:${port}/docs`);
+  }
+
+  await app.listen(port);
+  logger.log(`Server running at http://localhost:${port}/${API_PREFIX}`);
 }
-bootstrap();
+
+bootstrap().catch((error: unknown) => {
+  new Logger('Bootstrap').error('Failed to start server', error);
+  process.exit(1);
+});

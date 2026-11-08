@@ -1,37 +1,36 @@
-import { DataSource, Repository } from 'typeorm';
-import { Injectable, Logger } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
+import { Injectable } from '@nestjs/common';
+import { DataSource, ILike, Repository } from 'typeorm';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { User } from './entities/user.entity';
 
 @Injectable()
-export class UserRepository extends Repository<User> {
-  constructor(private readonly datasource: DataSource) {
-    super(User, datasource.createEntityManager());
+export class UsersRepository extends Repository<User> {
+  constructor(dataSource: DataSource) {
+    super(User, dataSource.createEntityManager());
   }
 
-  private readonly logger = new Logger(UserRepository.name);
-
-  async findById(id: User['id']): Promise<User> {
-    const user = await this.findOneBy({ id: id });
-    return user;
+  findByEmail(email: string): Promise<User | null> {
+    return this.findOneBy({ email: email.toLowerCase() });
   }
 
-  async createUser(dto: CreateUserDto): Promise<User> {
-    const insertResult = await this.createQueryBuilder()
-      .insert()
-      .into(User)
-      .values(dto)
-      .returning('*')
-      .execute();
-    const storedUser = this.create(insertResult.raw[0] as User);
-    this.logger.debug(`Stored user: ${JSON.stringify(storedUser)}`);
-    return storedUser;
+  /** Sama seperti findByEmail, tapi ikut mengambil hash password (untuk login). */
+  findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.email = :email', { email: email.toLowerCase() })
+      .getOne();
   }
 
-  async findByPhoneNumber(phone: string) {
-    const user = await this.findOne({
-      where: { phone: phone },
+  findPaginated(query: PaginationQueryDto): Promise<[User[], number]> {
+    const search = query.search?.trim();
+    const where = search
+      ? [{ name: ILike(`%${search}%`) }, { email: ILike(`%${search}%`) }]
+      : undefined;
+    return this.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      skip: query.skip,
+      take: query.limit,
     });
-    return user;
   }
 }

@@ -1,22 +1,43 @@
-# Use the official Node.js v20 image as the base image
-FROM node:20-alpine
+# syntax=docker/dockerfile:1
 
-# Create a new directory for the app
+FROM node:24-alpine AS base
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# Versi pnpm mengikuti field "packageManager" di package.json.
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# ---- Build (semua dependency) ----
+FROM base AS build
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --ignore-scripts
+COPY . .
+RUN pnpm build
+
+# ---- Dependency production saja ----
+FROM base AS prod-deps
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --ignore-scripts
+
+# ---- Runtime ----
+FROM node:24-alpine AS runtime
+RUN apk add --no-cache tzdata
+ENV NODE_ENV=production \
+    TZ=Asia/Jakarta \
+    PORT=3000
 WORKDIR /app
 
-# Update the package manager
-RUN apk update
+COPY --from=build --chown=node:node /app/package.json ./
+COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
 
-# Copy package json and install package
-COPY package-lock.json package.json /app/
-RUN npm install pm2 -g && npm install
+USER node
+EXPOSE 3000
 
-# Copy the remaining file
-COPY . .
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -qO- "http://127.0.0.1:${PORT}/api/v1/health" > /dev/null || exit 1
 
-ENV TZ=Asia/jakarta
-# Build
-RUN npm run build \
-  && npm prune --productiaon --silent
-
-CMD npm run typeorm:migration:run && pm2-runtime
+# Jalankan migration lalu start app. `exec` agar node menerima SIGTERM (graceful shutdown).
+CMD ["sh", "-c", "node node_modules/typeorm/cli.js migration:run -d dist/common/database/data-source.js && exec node dist/main.js"]

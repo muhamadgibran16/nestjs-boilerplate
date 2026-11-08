@@ -1,0 +1,11 @@
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { Request } from 'express';
+import { JwtPayload } from '../../auth/types/jwt-payload';
+
+/** Ambil payload JWT user yang sedang login, atau salah satu field-nya. */
+export const CurrentUser = createParamDecorator(
+  (field: keyof JwtPayload | undefined, ctx: ExecutionContext) => {
+    const user = ctx.switchToHttp().getRequest<Request>().user;
+    return field ? user?.[field] : user;
+  },
+);

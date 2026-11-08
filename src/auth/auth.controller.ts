@@ -1,42 +1,49 @@
 import {
+  Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
+import { ResponseMessage } from '../common/decorators/response-message.decorator';
 import { AuthService } from './auth.service';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
+/** Rate limit lebih ketat untuk endpoint yang rawan brute force. */
+const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
+
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post()
-  create(@Body() createAuthDto: CreateAuthDto) {
-    return this.authService.create(createAuthDto);
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @Post('register')
+  @ResponseMessage('Registration successful')
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  @Get()
-  findAll() {
-    return this.authService.findAll();
+  @Public()
+  @Throttle(AUTH_THROTTLE)
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ResponseMessage('Login successful')
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.authService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAuthDto: UpdateAuthDto) {
-    return this.authService.update(+id, updateAuthDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.authService.remove(+id);
+  /** Profil user yang sedang login. */
+  @ApiBearerAuth()
+  @Get('me')
+  me(@CurrentUser('sub') userId: string) {
+    return this.authService.me(userId);
   }
 }

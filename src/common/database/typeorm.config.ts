@@ -1,23 +1,24 @@
-import { TypeOrmModuleOptions } from '@nestjs/typeorm';
-import { config } from '../config/env-loader';
+import { join } from 'path';
+import { DataSourceOptions } from 'typeorm';
+import { AppConfig } from '../../config/configuration';
 
-export const typeOrmDataSourceOptions: TypeOrmModuleOptions = {
+/**
+ * Opsi TypeORM yang dipakai bersama oleh aplikasi (DatabaseModule) dan
+ * TypeORM CLI (data-source.ts), sehingga keduanya selalu konsisten.
+ */
+export const buildTypeOrmOptions = (
+  db: AppConfig['database'],
+): DataSourceOptions => ({
   type: 'postgres',
-  host: config.database.DB_HOST,
-  port: config.database.DB_PORT,
-  username: config.database.DB_USER,
-  password: config.database.DB_PASSWORD,
-  database: config.database.DB_NAME,
-  entities: ['dist/**/*.entity{.ts,.js}'],
-  synchronize: true, // DANGER! Dont set syncronize true in production
-  dropSchema: false,
-  logging: true,
-};
-
-export const typeOrmConfig: TypeOrmModuleOptions = {
-  ...typeOrmDataSourceOptions,
-  autoLoadEntities: true,
-  logging: ['error', 'warn', 'query'],
-};
-
-export default typeOrmConfig;
+  host: db.host,
+  port: db.port,
+  username: db.user,
+  password: db.password,
+  database: db.name,
+  // Path relatif terhadap file ini sehingga bekerja baik di src (ts-node) maupun dist (js).
+  entities: [join(__dirname, '..', '..', '**', '*.entity.{ts,js}')],
+  migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+  migrationsTableName: 'migrations',
+  synchronize: db.synchronize,
+  logging: db.logging ? 'all' : ['error', 'warn'],
+});
